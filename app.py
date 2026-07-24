@@ -11,12 +11,12 @@ st.set_page_config(
 )
 
 # --------------------------------
-# Groq API
+# Groq API Setup
 # --------------------------------
 groq_api_key = st.secrets.get("GROQ_API_KEY")
 
 if not groq_api_key:
-    st.error("GROQ_API_KEY not found in Streamlit Secrets.")
+    st.error("🔑 GROQ_API_KEY not found in Streamlit Secrets. Please configure it in app settings.")
     st.stop()
 
 client = Groq(api_key=groq_api_key)
@@ -36,33 +36,28 @@ if "history" not in st.session_state:
 with st.sidebar:
     st.title("📚 History")
 
-    if st.button("➕ New Chat"):
+    if st.button("➕ New Chat", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
 
     st.divider()
 
-    if len(st.session_state.history) == 0:
+    if not st.session_state.history:
         st.info("No generated content yet")
-
-    for item in reversed(st.session_state.history):
-        st.write(f"📄 {item}")
+    else:
+        for idx, item in enumerate(reversed(st.session_state.history)):
+            st.markdown(f"📄 **{item}**")
 
 # --------------------------------
-# Main Title
+# Main Title & Description
 # --------------------------------
 st.title("🚀 GitHub Post Generator")
 
 st.markdown("""
-Generate:
-
-- GitHub Posts
-- LinkedIn Posts
-- README Files
-- Portfolio Descriptions
-- Internship Posts
-- Workshop Summaries
-- Project Documentation
+Generate ready-to-post content:
+* **GitHub & LinkedIn Posts**
+* **README Files & Project Documentation**
+* **Portfolio Descriptions & Internship Summaries**
 """)
 
 # --------------------------------
@@ -73,26 +68,18 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # --------------------------------
-# Chat Input
+# Chat Input & Logic
 # --------------------------------
-prompt = st.chat_input(
-    "Describe your project..."
-)
+prompt = st.chat_input("Describe your project...")
 
 if prompt:
-
     # Save User Message
-    st.session_state.messages.append(
-        {
-            "role": "user",
-            "content": prompt
-        }
-    )
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # System Prompt
+    # System Persona Rules
     system_prompt = """
 You are Shank Content Writer.
 
@@ -132,40 +119,34 @@ Rules:
 """
 
     with st.chat_message("assistant"):
-
         with st.spinner("Generating content..."):
-
             try:
+                # Build complete conversation payload
+                api_messages = [{"role": "system", "content": system_prompt}]
+                
+                for msg in st.session_state.messages:
+                    api_messages.append({"role": msg["role"], "content": msg["content"]})
 
+                # Call Groq API
                 response = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": system_prompt
-                        },
-                        {
-                            "role": "user",
-                            "content": prompt
-                        }
-                    ]
+                    messages=api_messages,
+                    temperature=0.7,
+                    max_tokens=2048,
                 )
 
                 answer = response.choices[0].message.content
 
+                # Display generated answer
                 st.markdown(answer)
 
-                st.session_state.messages.append(
-                    {
-                        "role": "assistant",
-                        "content": answer
-                    }
-                )
+                # Save Assistant Message
+                st.session_state.messages.append({"role": "assistant", "content": answer})
 
-                title = prompt[:40]
-
-                if title not in st.session_state.history:
-                    st.session_state.history.append(title)
+                # Track History Snippet
+                title_snippet = prompt[:35] + ("..." if len(prompt) > 35 else "")
+                if title_snippet not in st.session_state.history:
+                    st.session_state.history.append(title_snippet)
 
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Error calling Groq API: {e}")
