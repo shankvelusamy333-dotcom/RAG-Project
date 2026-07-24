@@ -1,67 +1,114 @@
 import streamlit as st
-import ollama
+from groq import Groq
 
-# Page Configuration
+# ---------------------------
+# Page Config
+# ---------------------------
 st.set_page_config(
     page_title="GitHub Post Generator",
     page_icon="🚀",
     layout="wide"
 )
 
+# ---------------------------
+# Groq Client
+# ---------------------------
+client = Groq(
+    api_key=st.secrets["GROQ_API_KEY"]
+)
+
+# ---------------------------
 # Session State
+# ---------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 if "history" not in st.session_state:
     st.session_state.history = []
 
+# ---------------------------
 # Sidebar
+# ---------------------------
 with st.sidebar:
-    st.title("📂 History")
+    st.title("📚 History")
 
-    if st.button("➕ New Chat"):
-        st.session_state.messages = []
-        st.rerun()
+    if len(st.session_state.history) == 0:
+        st.info("No content generated yet")
 
-    st.divider()
+    for item in st.session_state.history:
+        st.write("📄 " + item)
 
-    for i, item in enumerate(reversed(st.session_state.history)):
-        st.write(f"📄 {item}")
-
-# Main Page
+# ---------------------------
+# Main Title
+# ---------------------------
 st.title("🚀 GitHub Post Generator")
-st.caption(
-    "Create GitHub posts, README files, LinkedIn posts, portfolio descriptions, and project summaries."
+
+st.markdown(
+    "Generate GitHub posts, LinkedIn posts, README files, Portfolio descriptions and Project documentation."
 )
 
+# ---------------------------
 # Display Chat Messages
+# ---------------------------
 for message in st.session_state.messages:
+
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Chat Input
+# ---------------------------
+# User Input
+# ---------------------------
 prompt = st.chat_input(
-    "Describe your project or tell me what content you want..."
+    "Describe your project..."
 )
 
 if prompt:
 
-    # Show User Message
+    # Save User Message
     st.session_state.messages.append(
-        {"role": "user", "content": prompt}
+        {
+            "role": "user",
+            "content": prompt
+        }
     )
 
+    # Show User Message
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate Response
+    # Assistant Response
     with st.chat_message("assistant"):
 
         with st.spinner("Generating content..."):
 
-            response = ollama.chat(
-                model="github-post-generator",   # Your Ollama model name
+            system_prompt = """
+You are Shank Content Writer.
+
+Generate:
+- GitHub Posts
+- LinkedIn Posts
+- README Files
+- Portfolio Descriptions
+- Internship Posts
+- Project Documentation
+
+Rules:
+- Write as if Shankari personally wrote it.
+- Use first-person language.
+- Do not ask questions.
+- Generate complete content directly.
+- Add relevant emojis.
+- Sound professional and human.
+- Include technologies, features, learnings and future improvements.
+"""
+
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
                 messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt
+                    },
                     {
                         "role": "user",
                         "content": prompt
@@ -69,11 +116,11 @@ if prompt:
                 ]
             )
 
-            answer = response["message"]["content"]
+            answer = response.choices[0].message.content
 
             st.markdown(answer)
 
-    # Save Chat
+    # Save Assistant Message
     st.session_state.messages.append(
         {
             "role": "assistant",
@@ -81,7 +128,7 @@ if prompt:
         }
     )
 
-    # Save History Title
+    # Save History
     title = prompt[:40]
 
     if title not in st.session_state.history:
